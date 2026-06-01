@@ -45,7 +45,7 @@ class MessManagementApp {
   }
 
   // --- Fetch entire relational state from Express server ---
-  async loadFromServer() {
+  async loadFromServer(forceRender = false) {
     try {
       const res = await fetch('/api/mess-data');
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -57,8 +57,8 @@ class MessManagementApp {
         this.state.otherExpenses = data.otherExpenses || [];
         this.state.deposits = data.deposits || [];
         
-        // Only overwrite meals state and active grid if there are no unsaved local edits
-        if (!this.hasUnsavedMealEdits) {
+        // Only overwrite meals state if there are no unsaved local edits or if we force it
+        if (!this.hasUnsavedMealEdits || forceRender) {
           this.state.meals = data.meals || {};
         }
         
@@ -66,13 +66,16 @@ class MessManagementApp {
         this.saveToLocalStorage();
 
         // Re-render active views with fresh server data
-        this.renderActiveTabContent();
+        // Bypass rendering meals tab in background polling to prevent cursor jump/overwrite!
+        if (this.state.activeTab !== 'meals' || forceRender) {
+          this.renderActiveTabContent();
+        }
         this.updateGlobalCalculations();
       }
     } catch (err) {
       console.warn("Express Server connection failed. App running in standalone fallback mode.", err);
       // Local fallback: load from LocalStorage to keep user's state intact
-      this.loadFromLocalStorage();
+      this.loadFromLocalStorage(forceRender);
     }
   }
 
@@ -92,7 +95,7 @@ class MessManagementApp {
   }
 
   // --- Helper: Load complete state from LocalStorage ---
-  loadFromLocalStorage() {
+  loadFromLocalStorage(forceRender = false) {
     try {
       const raw = localStorage.getItem('elitemess_state');
       if (raw) {
@@ -102,13 +105,15 @@ class MessManagementApp {
         this.state.otherExpenses = parsed.otherExpenses || [];
         this.state.deposits = parsed.deposits || [];
         
-        // Only overwrite meals state if there are no active unsaved edits
-        if (!this.hasUnsavedMealEdits) {
+        // Only overwrite meals state if there are no active unsaved edits or if we force it
+        if (!this.hasUnsavedMealEdits || forceRender) {
           this.state.meals = parsed.meals || {};
         }
         
         // Re-render active views
-        this.renderActiveTabContent();
+        if (this.state.activeTab !== 'meals' || forceRender) {
+          this.renderActiveTabContent();
+        }
         this.updateGlobalCalculations();
         console.log("EliteMess successfully loaded backup state from localStorage.");
         return true;
@@ -1067,7 +1072,7 @@ class MessManagementApp {
         }
 
         alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully! Cloud updated.`);
-        await this.loadFromServer();
+        await this.loadFromServer(true);
         return;
       }
     } catch (err) {
