@@ -1,6 +1,26 @@
 /* ==========================================================================
-   EliteMess - Premium Webapp Core Controller & Calculation Engine
+   EliteMess - Premium Webapp Core Controller & Firebase Realtime Database Sync
    ========================================================================== */
+
+// Import modern modular Firebase JS SDK from CDN
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDTfuIvr31DxSlvCAz9EXHZZEma2UsHemo",
+  authDomain: "elitemess.firebaseapp.com",
+  projectId: "elitemess",
+  storageBucket: "elitemess.firebasestorage.app",
+  messagingSenderId: "967766801691",
+  appId: "1:967766801691:web:c0654a5acf018f3ba827be",
+  measurementId: "G-Z371TTZNWD",
+  databaseURL: "https://elitemess-default-rtdb.firebaseio.com"
+};
+
+// Initialize Firebase
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
 
 class MessManagementApp {
   constructor() {
@@ -14,45 +34,65 @@ class MessManagementApp {
       selectedMealDate: this.formatDate(new Date())
     };
 
+    this.eventsBound = false;
+
     // DOM Binding and Listeners
     this.init();
   }
 
   // ==========================================================================
-  // Initialization & LocalStorage Integration
+  // Initialization & Realtime Firebase Database Synchronization
   // ==========================================================================
   init() {
-    // 1. Load Data
-    this.loadFromLocalStorage();
-
-    // If clean launch, seed beautiful mock data so user can see visual details immediately
-    if (this.state.members.length === 0) {
-      this.seedMockData();
-    }
-
-    // 2. Initialize DOM event listeners
-    this.bindEvents();
-
-    // 3. Render initial state
-    this.switchTab(this.state.activeTab);
-    this.updateGlobalCalculations();
-  }
-
-  saveToLocalStorage() {
-    localStorage.setItem('elitemess_db', JSON.stringify(this.state));
-  }
-
-  loadFromLocalStorage() {
-    const rawData = localStorage.getItem('elitemess_db');
-    if (rawData) {
-      try {
-        const parsed = JSON.parse(rawData);
-        // Map parsed state, keeping default fields if older keys are absent
-        this.state = { ...this.state, ...parsed };
-      } catch (e) {
-        console.error("Failed to parse local storage mess database", e);
+    console.log("Initializing EliteMess and establishing real-time Firebase connection...");
+    
+    // 1. Set up real-time listener to the root path 'mess_data'
+    const dataRef = ref(db, 'mess_data');
+    onValue(dataRef, (snapshot) => {
+      const data = snapshot.val();
+      
+      if (data) {
+        console.log("Firebase sync: Loaded live updates from the cloud!");
+        this.state.members = data.members || [];
+        this.state.meals = data.meals || {};
+        this.state.bazaar = data.bazaar || [];
+        this.state.otherExpenses = data.otherExpenses || [];
+        this.state.deposits = data.deposits || [];
+      } else {
+        // If database is completely empty on launch, automatically seed default mock data
+        console.log("Firebase sync: Database is empty. Seeding gorgeous mock data...");
+        this.seedMockData();
       }
-    }
+
+      // 2. Initialize DOM event listeners ONCE during initial sync
+      if (!this.eventsBound) {
+        this.bindEvents();
+        this.eventsBound = true;
+      }
+
+      // 3. Dynamic render triggers to refresh active screen
+      this.switchTab(this.state.activeTab);
+      this.updateGlobalCalculations();
+    }, (error) => {
+      console.error("Firebase read connection failed! Checking security rules?", error);
+      alert("Database connection failed! Please make sure your Firebase Realtime Database Rules allow read/write (.read: true, .write: true).");
+    });
+  }
+
+  // --- Commits state changes directly to Cloud Firebase Database ---
+  saveToCloud() {
+    set(ref(db, 'mess_data'), {
+      members: this.state.members || [],
+      meals: this.state.meals || {},
+      bazaar: this.state.bazaar || [],
+      otherExpenses: this.state.otherExpenses || [],
+      deposits: this.state.deposits || []
+    }).then(() => {
+      console.log("Firebase sync: State committed to the cloud database successfully.");
+    }).catch((error) => {
+      console.error("Firebase write committed failed!", error);
+      alert("Failed to sync changes with the cloud! Please check your internet connection or database security rules.");
+    });
   }
 
   // ==========================================================================
@@ -103,7 +143,7 @@ class MessManagementApp {
       };
     }
 
-    this.saveToLocalStorage();
+    this.saveToCloud();
   }
 
   // ==========================================================================
@@ -722,7 +762,7 @@ class MessManagementApp {
       }
     }
 
-    this.saveToLocalStorage();
+    this.saveToCloud();
     this.closeAllModals();
     this.switchTab('members');
   }
@@ -746,7 +786,7 @@ class MessManagementApp {
     };
 
     this.state.deposits.push(newDeposit);
-    this.saveToLocalStorage();
+    this.saveToCloud();
     this.closeAllModals();
     
     // Direct routing to members view to verify new balance
@@ -785,7 +825,7 @@ class MessManagementApp {
       this.state.bazaar.push(newBazaar);
     }
 
-    this.saveToLocalStorage();
+    this.saveToCloud();
     this.closeAllModals();
     this.switchTab('bazaar');
   }
@@ -820,7 +860,7 @@ class MessManagementApp {
       this.state.otherExpenses.push(newExp);
     }
 
-    this.saveToLocalStorage();
+    this.saveToCloud();
     this.closeAllModals();
     this.switchTab('expenses');
   }
@@ -831,7 +871,7 @@ class MessManagementApp {
   deleteBazaar(id) {
     if (confirm("Are you sure you want to delete this bazaar entry? This will immediately recalculate everyone's balances.")) {
       this.state.bazaar = this.state.bazaar.filter(b => b.id !== id);
-      this.saveToLocalStorage();
+      this.saveToCloud();
       this.renderBazaar();
     }
   }
@@ -839,7 +879,7 @@ class MessManagementApp {
   deleteExpense(id) {
     if (confirm("Are you sure you want to delete this shared expense? It will change the split cost of all members.")) {
       this.state.otherExpenses = this.state.otherExpenses.filter(e => e.id !== id);
-      this.saveToLocalStorage();
+      this.saveToCloud();
       this.renderExpenses();
     }
   }
@@ -868,7 +908,7 @@ class MessManagementApp {
       this.state.meals[todayStr][member.id] = { breakfast: b, lunch: l, dinner: d };
     });
 
-    this.saveToLocalStorage();
+    this.saveToCloud();
     alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully! Ledger updated.`);
     this.renderMealBook();
   }
@@ -880,7 +920,7 @@ class MessManagementApp {
       this.state.otherExpenses = [];
       this.state.deposits = [];
       
-      this.saveToLocalStorage();
+      this.saveToCloud();
       alert("All monthly records, bazaar entries, deposits, and meals have been successfully reset. Active member accounts are retained.");
       this.switchTab('dashboard');
     }
@@ -1142,8 +1182,8 @@ class MessManagementApp {
             activeTab: 'dashboard',
             selectedMealDate: this.formatDate(new Date())
           };
-          this.saveToLocalStorage();
-          alert("Mess database backup successfully imported! Layout synchronizing.");
+          this.saveToCloud();
+          alert("Mess database backup successfully imported to Cloud Database! Layout synchronizing.");
           this.switchTab('dashboard');
         } else {
           alert("Invalid backup file format! Please upload a valid EliteMess database JSON.");
