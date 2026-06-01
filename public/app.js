@@ -888,13 +888,14 @@ class MessManagementApp {
     const name = document.getElementById('member-name').value.trim();
     const phone = document.getElementById('member-phone').value.trim();
     const email = document.getElementById('member-email').value.trim();
+    const password = document.getElementById('member-password').value.trim() || '1234';
     const depositVal = parseFloat(document.getElementById('member-deposit').value) || 0;
 
     if (!name) return;
 
     const targetId = id || 'mem-' + Date.now();
-    const localMember = { id: targetId, name, phone, email };
-    const payload = { id, name, phone, email, initialDeposit: depositVal };
+    const localMember = { id: targetId, name, phone, email, password };
+    const payload = { id, name, phone, email, password, initialDeposit: depositVal };
     
     try {
       const res = await fetch('/api/members', {
@@ -1257,12 +1258,14 @@ class MessManagementApp {
         document.getElementById('member-name').value = member.name;
         document.getElementById('member-phone').value = member.phone || '';
         document.getElementById('member-email').value = member.email || '';
+        document.getElementById('member-password').value = member.password || '1234';
         depositContainer.style.display = 'none'; // Hide initial deposit field during profile edit
       }
     } else {
       // Create mode
       titleEl.textContent = 'Add New Mess Member';
       document.getElementById('member-edit-id').value = '';
+      document.getElementById('member-password').value = '';
       depositContainer.style.display = 'flex';
     }
 
@@ -1724,7 +1727,13 @@ class MessManagementApp {
     if (bRegForm) bRegForm.style.display = 'none';
     if (bForm) bForm.style.display = 'block';
     
-    this.populateBoarderSelectDropdown();
+    const loginIdInput = document.getElementById('boarder-login-id');
+    const loginPassInput = document.getElementById('boarder-login-pass');
+    if (loginIdInput) {
+      loginIdInput.value = '';
+      loginIdInput.focus();
+    }
+    if (loginPassInput) loginPassInput.value = '';
   }
 
   showBoarderRegistration() {
@@ -1738,9 +1747,11 @@ class MessManagementApp {
     const nameInput = document.getElementById('reg-name');
     const phoneInput = document.getElementById('reg-phone');
     const emailInput = document.getElementById('reg-email');
+    const passwordInput = document.getElementById('reg-password');
     if (nameInput) nameInput.value = '';
     if (phoneInput) phoneInput.value = '';
     if (emailInput) emailInput.value = '';
+    if (passwordInput) passwordInput.value = '';
   }
 
   resetGateway() {
@@ -1753,16 +1764,6 @@ class MessManagementApp {
     if (bForm) bForm.style.display = 'none';
     if (bRegForm) bRegForm.style.display = 'none';
     if (mainOpts) mainOpts.style.display = 'grid';
-  }
-
-  populateBoarderSelectDropdown() {
-    const select = document.getElementById('boarder-select');
-    if (!select) return;
-    
-    select.innerHTML = '<option value="">-- Select Your Name --</option>';
-    this.state.members.forEach(m => {
-      select.innerHTML += `<option value="${m.id}">${m.name}</option>`;
-    });
   }
 
   loginAsManager() {
@@ -1781,22 +1782,38 @@ class MessManagementApp {
   }
 
   loginAsBoarder() {
-    const select = document.getElementById('boarder-select');
-    const memberId = select ? select.value : '';
+    const enteredIdInput = document.getElementById('boarder-login-id');
+    const enteredPassInput = document.getElementById('boarder-login-pass');
     
-    if (!memberId) {
-      alert("⚠️ Please select your member profile from the dropdown.");
+    const enteredId = enteredIdInput ? enteredIdInput.value.trim() : '';
+    const enteredPass = enteredPassInput ? enteredPassInput.value.trim() : '';
+    
+    if (!enteredId || !enteredPass) {
+      alert("⚠️ Please enter both your Phone Number (or Member ID) and Passcode.");
       return;
     }
     
-    const member = this.state.members.find(m => m.id === memberId);
+    // Find member by Phone or ID (case-insensitive for IDs)
+    const member = this.state.members.find(m => 
+      (m.phone && m.phone.trim() === enteredId) || 
+      (m.id && m.id.toLowerCase().trim() === enteredId.toLowerCase())
+    );
+    
     if (member) {
-      this.currentUser = { role: 'member', memberId: member.id, name: member.name };
-      localStorage.setItem('elitemess_user', JSON.stringify(this.currentUser));
-      this.applyRoleAccessControl();
-      this.loadFromServer(true);
+      // Check passcode (default passcode is 1234)
+      const correctPass = member.password ? member.password.trim() : '1234';
+      if (enteredPass === correctPass) {
+        this.currentUser = { role: 'member', memberId: member.id, name: member.name };
+        localStorage.setItem('elitemess_user', JSON.stringify(this.currentUser));
+        this.applyRoleAccessControl();
+        this.loadFromServer(true);
+        if (enteredIdInput) enteredIdInput.value = '';
+        if (enteredPassInput) enteredPassInput.value = '';
+      } else {
+        alert("❌ Incorrect Passcode! The default passcode is 1234 unless customized.");
+      }
     } else {
-      alert("❌ Selected member profile was not found!");
+      alert("❌ Member profile not found! Please check your credentials or register as a new member below.");
     }
   }
 
@@ -1804,13 +1821,14 @@ class MessManagementApp {
     const name = document.getElementById('reg-name').value.trim();
     const phone = document.getElementById('reg-phone').value.trim();
     const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value.trim();
     
-    if (!name || !phone) {
-      alert("⚠️ Name and Phone Number are required fields.");
+    if (!name || !phone || !password) {
+      alert("⚠️ Name, Phone Number, and Passcode are required fields.");
       return;
     }
     
-    const payload = { name, phone, email };
+    const payload = { name, phone, email, password };
     
     try {
       const res = await fetch('/api/members', {
@@ -1836,7 +1854,7 @@ class MessManagementApp {
     
     // Offline local storage fallback
     const offlineId = 'mem-' + Date.now();
-    const localMember = { id: offlineId, name, phone, email };
+    const localMember = { id: offlineId, name, phone, email, password };
     this.state.members.push(localMember);
     this.saveToLocalStorage();
     

@@ -54,8 +54,14 @@ async function initDB() {
         id VARCHAR(50) PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         phone VARCHAR(20),
-        email VARCHAR(100)
+        email VARCHAR(100),
+        password VARCHAR(100) DEFAULT '1234'
       );
+    `);
+
+    // Run migration to add password column to existing databases
+    await client.query(`
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS password VARCHAR(100) DEFAULT '1234';
     `);
 
     // 2. Create Deposits Table
@@ -257,7 +263,7 @@ app.get('/api/mess-data', async (req, res) => {
 
 // --- POST: Save / Edit Member ---
 app.post('/api/members', async (req, res) => {
-  const { id, name, phone, email, initialDeposit } = req.body;
+  const { id, name, phone, email, password, initialDeposit } = req.body;
   if (!name) return res.status(400).json({ error: "Name is required" });
 
   try {
@@ -265,15 +271,15 @@ app.post('/api/members', async (req, res) => {
     if (id) {
       // Edit mode
       await pool.query(
-        'UPDATE members SET name = $1, phone = $2, email = $3 WHERE id = $4',
-        [name, phone, email, id]
+        'UPDATE members SET name = $1, phone = $2, email = $3, password = $4 WHERE id = $5',
+        [name, phone, email, password || '1234', id]
       );
     } else {
       // Insert mode
       targetId = 'mem-' + Date.now();
       await pool.query(
-        'INSERT INTO members (id, name, phone, email) VALUES ($1, $2, $3, $4)',
-        [targetId, name, phone, email]
+        'INSERT INTO members (id, name, phone, email, password) VALUES ($1, $2, $3, $4, $5)',
+        [targetId, name, phone, email, password || '1234']
       );
 
       // Log initial deposit if provided
