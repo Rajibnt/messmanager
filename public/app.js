@@ -1,26 +1,6 @@
 /* ==========================================================================
-   EliteMess - Premium Webapp Core Controller & Firebase Realtime Database Sync
+   EliteMess - Premium Webapp Core Controller & Express + PostgreSQL REST Client
    ========================================================================== */
-
-// Import modern modular Firebase JS SDK from CDN
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyDTfuIvr31DxSlvCAz9EXHZZEma2UsHemo",
-  authDomain: "elitemess.firebaseapp.com",
-  projectId: "elitemess",
-  storageBucket: "elitemess.firebasestorage.app",
-  messagingSenderId: "967766801691",
-  appId: "1:967766801691:web:c0654a5acf018f3ba827be",
-  measurementId: "G-Z371TTZNWD",
-  databaseURL: "https://elitemess-default-rtdb.firebaseio.com"
-};
-
-// Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getDatabase(firebaseApp);
 
 class MessManagementApp {
   constructor() {
@@ -34,123 +14,52 @@ class MessManagementApp {
       selectedMealDate: this.formatDate(new Date())
     };
 
-    this.eventsBound = false;
-
     // DOM Binding and Listeners
     this.init();
   }
 
   // ==========================================================================
-  // Initialization & Realtime Firebase Database Synchronization
+  // Initialization & Express API Synchronization
   // ==========================================================================
-  init() {
-    console.log("Initializing EliteMess...");
+  async init() {
+    console.log("Initializing EliteMess client and establishing server connections...");
     
     // 1. Initialize DOM event listeners immediately so buttons work instantly!
     this.bindEvents();
-    this.eventsBound = true;
 
     // 2. Perform initial UI render with local empty state
     this.switchTab(this.state.activeTab);
     this.updateGlobalCalculations();
 
-    // 3. Connect to Realtime Firebase Database in the background
+    // 3. Fetch live data from Express Server
+    await this.loadFromServer();
+
+    // 4. Setup smart polling: Fetch live data from the server every 5 seconds.
+    // This provides a fully real-time synced experience across all phones & devices!
+    setInterval(() => this.loadFromServer(), 5000);
+  }
+
+  // --- Fetch entire relational state from Express server ---
+  async loadFromServer() {
     try {
-      const dataRef = ref(db, 'mess_data');
-      onValue(dataRef, (snapshot) => {
-        const data = snapshot.val();
+      const res = await fetch('/api/mess-data');
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      
+      if (data && data.members) {
+        this.state.members = data.members || [];
+        this.state.meals = data.meals || {};
+        this.state.bazaar = data.bazaar || [];
+        this.state.otherExpenses = data.otherExpenses || [];
+        this.state.deposits = data.deposits || [];
         
-        if (data) {
-          console.log("Firebase sync: Loaded live updates from the cloud!");
-          this.state.members = data.members || [];
-          this.state.meals = data.meals || {};
-          this.state.bazaar = data.bazaar || [];
-          this.state.otherExpenses = data.otherExpenses || [];
-          this.state.deposits = data.deposits || [];
-        } else {
-          // If database is completely empty on launch, automatically seed default mock data
-          console.log("Firebase sync: Database is empty. Seeding gorgeous mock data...");
-          this.seedMockData();
-        }
-
-        // Re-render UI with new live cloud data!
-        this.switchTab(this.state.activeTab);
+        // Re-render active views with fresh server data
+        this.renderActiveTabContent();
         this.updateGlobalCalculations();
-      }, (error) => {
-        console.error("Firebase read connection failed! Checking security rules?", error);
-        // Fallback alert: keep app functional offline!
-        console.warn("Cloud Database connection failed. Running in standalone fallback mode.");
-      });
+      }
     } catch (err) {
-      console.error("Firebase setup failed: ", err);
+      console.warn("Express Server connection failed. App running in standalone fallback mode.", err);
     }
-  }
-
-  // --- Commits state changes directly to Cloud Firebase Database ---
-  saveToCloud() {
-    set(ref(db, 'mess_data'), {
-      members: this.state.members || [],
-      meals: this.state.meals || {},
-      bazaar: this.state.bazaar || [],
-      otherExpenses: this.state.otherExpenses || [],
-      deposits: this.state.deposits || []
-    }).then(() => {
-      console.log("Firebase sync: State committed to the cloud database successfully.");
-    }).catch((error) => {
-      console.error("Firebase write committed failed!", error);
-      alert("Failed to sync changes with the cloud! Please check your internet connection or database security rules.");
-    });
-  }
-
-  // ==========================================================================
-  // Mock Data Seeding (Interactive Sandboxed Sandbox)
-  // ==========================================================================
-  seedMockData() {
-    const today = new Date();
-    const dStr = (offset) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - offset);
-      return this.formatDate(d);
-    };
-
-    this.state.members = [
-      { id: "mem-1", name: "Rakib Ahmed", phone: "01711223344", email: "rakib@gmail.com" },
-      { id: "mem-2", name: "Abir Hasan", phone: "01999887766", email: "abir@gmail.com" },
-      { id: "mem-3", name: "Sajid Islam", phone: "01555443322", email: "sajid@gmail.com" }
-    ];
-
-    // Seed Deposits
-    this.state.deposits = [
-      { id: "dep-1", memberId: "mem-1", amount: 3000, date: dStr(5), notes: "Bkash Deposit" },
-      { id: "dep-2", memberId: "mem-2", amount: 2500, date: dStr(5), notes: "Cash Deposit" },
-      { id: "dep-3", memberId: "mem-3", amount: 3500, date: dStr(5), notes: "Cash Deposit" },
-      { id: "dep-4", memberId: "mem-1", amount: 1000, date: dStr(2), notes: "Hand Cash" }
-    ];
-
-    // Seed Bazaar expenses
-    this.state.bazaar = [
-      { id: "baz-1", memberId: "mem-1", amount: 1450, date: dStr(4), items: "Beef 2kg, Cooking Oil 2L, Onions, Spices" },
-      { id: "baz-2", memberId: "mem-2", amount: 820, date: dStr(3), items: "Miniket Rice 10kg, Potato 5kg, Lentils 2kg" },
-      { id: "baz-3", memberId: "mem-3", amount: 560, date: dStr(1), items: "Chicken 1.5kg, Eggs 1 Dozen, Green Chillies" }
-    ];
-
-    // Seed Utility Bills
-    this.state.otherExpenses = [
-      { id: "oth-1", title: "Internet Wi-Fi", category: "Internet", amount: 600, date: dStr(4) },
-      { id: "oth-2", title: "Electricity Bill", category: "Electricity", amount: 1200, date: dStr(2) }
-    ];
-
-    // Seed meals for the last 5 days
-    for (let i = 0; i < 5; i++) {
-      const dateStr = dStr(i);
-      this.state.meals[dateStr] = {
-        "mem-1": { breakfast: i === 0 ? 0.5 : 1, lunch: 1, dinner: 1 },
-        "mem-2": { breakfast: 0, lunch: 1, dinner: 1 },
-        "mem-3": { breakfast: 1, lunch: 1, dinner: 1 }
-      };
-    }
-
-    this.saveToCloud();
   }
 
   // ==========================================================================
@@ -343,31 +252,51 @@ class MessManagementApp {
       case 'dashboard':
         titleEl.textContent = 'Dashboard Overview';
         subEl.textContent = 'Live financial audit and overview of your shared mess workspace';
-        this.renderDashboard();
         break;
       case 'members':
         titleEl.textContent = 'Mess Members';
         subEl.textContent = 'Register, edit, view ledger history, and trace cash dues of mess boarders';
-        this.renderMembers();
         break;
       case 'meals':
         titleEl.textContent = 'Daily Meal Book';
         subEl.textContent = 'Add daily breakfast, lunch, and dinner records on an interactive grid';
-        this.renderMealBook();
         break;
       case 'bazaar':
         titleEl.textContent = 'Grocery Bazaar Log';
         subEl.textContent = 'Record grocery purchases made by mess members to credit their ledger';
-        this.renderBazaar();
         break;
       case 'expenses':
         titleEl.textContent = 'Shared Utility Expenses';
         subEl.textContent = 'Log utilities, water, gas, Wi-Fi, rent, and household shared bills';
-        this.renderExpenses();
         break;
       case 'reports':
         titleEl.textContent = 'Final Settled Statements';
         subEl.textContent = 'Audit-grade billing invoice sheet. Printable as physical copy or PDF report';
+        break;
+    }
+
+    this.renderActiveTabContent();
+  }
+
+  renderActiveTabContent() {
+    const tabName = this.state.activeTab;
+    switch (tabName) {
+      case 'dashboard':
+        this.renderDashboard();
+        break;
+      case 'members':
+        this.renderMembers();
+        break;
+      case 'meals':
+        this.renderMealBook();
+        break;
+      case 'bazaar':
+        this.renderBazaar();
+        break;
+      case 'expenses':
+        this.renderExpenses();
+        break;
+      case 'reports':
         this.renderReports();
         break;
     }
@@ -402,7 +331,6 @@ class MessManagementApp {
   }
 
   renderDashboard() {
-    this.updateGlobalCalculations();
     const metrics = this.getCalculatedMetrics();
 
     // 1. Render Recent Bazaar List on Dashboard
@@ -415,7 +343,7 @@ class MessManagementApp {
       .slice(0, 5);
 
     if (recentBazaar.length === 0) {
-      bListContainer.innerHTML = `<div class="empty-state">No bazaar items recorded. Add one to see activity logs!</div>`;
+      bListContainer.innerHTML = `<div class="empty-state">No bazaar logged yet.</div>`;
     } else {
       recentBazaar.forEach(item => {
         const buyer = this.state.members.find(m => m.id === item.memberId);
@@ -730,11 +658,11 @@ class MessManagementApp {
   }
 
   // ==========================================================================
-  // Form Event Handlers & Mutations
+  // Form Event Handlers & Mutations (HTTP Fetch REST integration)
   // ==========================================================================
   
   // --- Members Form Submit ---
-  handleMemberSubmit(e) {
+  async handleMemberSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('member-edit-id').value;
     const name = document.getElementById('member-name').value.trim();
@@ -744,39 +672,30 @@ class MessManagementApp {
 
     if (!name) return;
 
-    if (id) {
-      // Edit existing member
-      const member = this.state.members.find(m => m.id === id);
-      if (member) {
-        member.name = name;
-        member.phone = phone;
-        member.email = email;
+    const payload = { id, name, phone, email, initialDeposit: depositVal };
+    
+    try {
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        this.closeAllModals();
+        await this.loadFromServer();
+        this.switchTab('members');
+      } else {
+        alert("Failed to save member on server!");
       }
-    } else {
-      // Add new member
-      const newId = 'mem-' + Date.now();
-      const newMember = { id: newId, name, phone, email };
-      this.state.members.push(newMember);
-
-      // Save initial deposit if any
-      if (depositVal > 0) {
-        this.state.deposits.push({
-          id: 'dep-' + Date.now(),
-          memberId: newId,
-          amount: depositVal,
-          date: this.formatDate(new Date()),
-          notes: "Initial Capital Deposit"
-        });
-      }
+    } catch (err) {
+      console.error(err);
+      alert("Network connection error to API server!");
     }
-
-    this.saveToCloud();
-    this.closeAllModals();
-    this.switchTab('members');
   }
 
   // --- Deposit Form Submit ---
-  handleDepositSubmit(e) {
+  async handleDepositSubmit(e) {
     e.preventDefault();
     const memberId = document.getElementById('deposit-member-id').value;
     const amount = parseFloat(document.getElementById('deposit-amount').value);
@@ -785,24 +704,29 @@ class MessManagementApp {
 
     if (!memberId || isNaN(amount) || !date) return;
 
-    const newDeposit = {
-      id: 'dep-' + Date.now(),
-      memberId,
-      amount,
-      date,
-      notes: notes || 'Logged Deposit'
-    };
+    const payload = { memberId, amount, date, notes };
 
-    this.state.deposits.push(newDeposit);
-    this.saveToCloud();
-    this.closeAllModals();
-    
-    // Direct routing to members view to verify new balance
-    this.switchTab('members');
+    try {
+      const res = await fetch('/api/deposits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        this.closeAllModals();
+        await this.loadFromServer();
+        this.switchTab('members');
+      } else {
+        alert("Failed to save deposit on server!");
+      }
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   // --- Bazaar Form Submit ---
-  handleBazaarSubmit(e) {
+  async handleBazaarSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('bazaar-edit-id').value;
     const memberId = document.getElementById('bazaar-member-id').value;
@@ -812,34 +736,29 @@ class MessManagementApp {
 
     if (!memberId || isNaN(amount) || !date || !items) return;
 
-    if (id) {
-      // Edit expense
-      const item = this.state.bazaar.find(b => b.id === id);
-      if (item) {
-        item.memberId = memberId;
-        item.amount = amount;
-        item.date = date;
-        item.items = items;
-      }
-    } else {
-      // Add expense
-      const newBazaar = {
-        id: 'baz-' + Date.now(),
-        memberId,
-        amount,
-        date,
-        items
-      };
-      this.state.bazaar.push(newBazaar);
-    }
+    const payload = { id, memberId, amount, date, items };
 
-    this.saveToCloud();
-    this.closeAllModals();
-    this.switchTab('bazaar');
+    try {
+      const res = await fetch('/api/bazaar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        this.closeAllModals();
+        await this.loadFromServer();
+        this.switchTab('bazaar');
+      } else {
+        alert("Failed to save bazaar receipt on server!");
+      }
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   // --- Shared Expense Form Submit ---
-  handleExpenseSubmit(e) {
+  async handleExpenseSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('expense-edit-id').value;
     const title = document.getElementById('expense-title').value.trim();
@@ -849,46 +768,53 @@ class MessManagementApp {
 
     if (!title || !category || isNaN(amount) || !date) return;
 
-    if (id) {
-      const exp = this.state.otherExpenses.find(e => e.id === id);
-      if (exp) {
-        exp.title = title;
-        exp.category = category;
-        exp.amount = amount;
-        exp.date = date;
-      }
-    } else {
-      const newExp = {
-        id: 'oth-' + Date.now(),
-        title,
-        category,
-        amount,
-        date
-      };
-      this.state.otherExpenses.push(newExp);
-    }
+    const payload = { id, title, category, amount, date };
 
-    this.saveToCloud();
-    this.closeAllModals();
-    this.switchTab('expenses');
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        this.closeAllModals();
+        await this.loadFromServer();
+        this.switchTab('expenses');
+      } else {
+        alert("Failed to save shared expense on server!");
+      }
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   // ==========================================================================
   // Delete Actions
   // ==========================================================================
-  deleteBazaar(id) {
+  async deleteBazaar(id) {
     if (confirm("Are you sure you want to delete this bazaar entry? This will immediately recalculate everyone's balances.")) {
-      this.state.bazaar = this.state.bazaar.filter(b => b.id !== id);
-      this.saveToCloud();
-      this.renderBazaar();
+      try {
+        const res = await fetch(`/api/bazaar/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          await this.loadFromServer();
+        }
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 
-  deleteExpense(id) {
+  async deleteExpense(id) {
     if (confirm("Are you sure you want to delete this shared expense? It will change the split cost of all members.")) {
-      this.state.otherExpenses = this.state.otherExpenses.filter(e => e.id !== id);
-      this.saveToCloud();
-      this.renderExpenses();
+      try {
+        const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          await this.loadFromServer();
+        }
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 
@@ -902,35 +828,45 @@ class MessManagementApp {
     this.renderMealBook();
   }
 
-  saveMealMatrix() {
+  async saveMealMatrix() {
     const todayStr = this.state.selectedMealDate;
-    if (!this.state.meals[todayStr]) {
-      this.state.meals[todayStr] = {};
-    }
+    const memberMeals = [];
 
     this.state.members.forEach(member => {
       const b = parseFloat(document.getElementById(`meal-b-${member.id}`).value) || 0;
       const l = parseFloat(document.getElementById(`meal-l-${member.id}`).value) || 0;
       const d = parseFloat(document.getElementById(`meal-d-${member.id}`).value) || 0;
-
-      this.state.meals[todayStr][member.id] = { breakfast: b, lunch: l, dinner: d };
+      memberMeals.push({ memberId: member.id, breakfast: b, lunch: l, dinner: d });
     });
 
-    this.saveToCloud();
-    alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully! Ledger updated.`);
-    this.renderMealBook();
+    try {
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: todayStr, memberMeals })
+      });
+      
+      if (res.ok) {
+        alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully! Cloud updated.`);
+        await this.loadFromServer();
+      }
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  resetMonthData() {
+  async resetMonthData() {
     if (confirm("WARNING: Are you sure you want to wipe this month's calculations and reset everything? We recommend exporting a JSON database backup before doing this.")) {
-      this.state.meals = {};
-      this.state.bazaar = [];
-      this.state.otherExpenses = [];
-      this.state.deposits = [];
-      
-      this.saveToCloud();
-      alert("All monthly records, bazaar entries, deposits, and meals have been successfully reset. Active member accounts are retained.");
-      this.switchTab('dashboard');
+      try {
+        const res = await fetch('/api/reset', { method: 'POST' });
+        if (res.ok) {
+          alert("All monthly records, bazaar entries, deposits, and meals have been successfully reset. Active member accounts are retained.");
+          await this.loadFromServer();
+          this.switchTab('dashboard');
+        }
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 
@@ -1170,29 +1106,30 @@ class MessManagementApp {
   }
 
   // --- Import Database Backup JSON ---
-  importDatabase(event) {
+  async importDatabase(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
         
         // Strict Schema validation check
         if (data.members && Array.isArray(data.members) && data.bazaar && data.deposits && data.meals) {
-          this.state = {
-            members: data.members,
-            meals: data.meals,
-            bazaar: data.bazaar,
-            otherExpenses: data.otherExpenses || [],
-            deposits: data.deposits,
-            activeTab: 'dashboard',
-            selectedMealDate: this.formatDate(new Date())
-          };
-          this.saveToCloud();
-          alert("Mess database backup successfully imported to Cloud Database! Layout synchronizing.");
-          this.switchTab('dashboard');
+          const res = await fetch('/api/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          
+          if (res.ok) {
+            alert("Mess database backup successfully imported to PostgreSQL Cloud Database! Layout synchronizing.");
+            await this.loadFromServer();
+            this.switchTab('dashboard');
+          } else {
+            alert("Failed to import database on server.");
+          }
         } else {
           alert("Invalid backup file format! Please upload a valid EliteMess database JSON.");
         }
@@ -1257,7 +1194,7 @@ class MessManagementApp {
   }
 }
 
-// Instantiate App immediately (ES Modules run after DOM parsing by default)
+// Instantiate App immediately (DOM is fully parsed when static JS loads from Express server)
 const savedTheme = localStorage.getItem('elitemess_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', savedTheme);
 
