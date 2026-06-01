@@ -303,6 +303,7 @@ class MessManagementApp {
     document.getElementById('btn-quick-meal').addEventListener('click', () => this.switchTab('meals'));
     document.getElementById('btn-quick-deposit').addEventListener('click', () => this.openDepositModal());
     document.getElementById('btn-add-bazaar').addEventListener('click', () => this.openBazaarModal());
+    document.getElementById('btn-add-bazaar-item').addEventListener('click', () => this.createBazaarItemRow());
     document.getElementById('btn-add-expense').addEventListener('click', () => this.openExpenseModal());
 
     // Modals Closing Triggers
@@ -474,11 +475,24 @@ class MessManagementApp {
         const buyer = this.state.members.find(m => m.id === item.memberId);
         const buyerName = buyer ? buyer.name : 'Unknown';
         
+        // Parse items as JSON or fallback to legacy text
+        let itemsTitle = '';
+        try {
+          const parsedItems = JSON.parse(item.items);
+          if (Array.isArray(parsedItems)) {
+            itemsTitle = parsedItems.map(it => `${it.name} (${it.qty || '1'})`).join(', ');
+          } else {
+            itemsTitle = item.items;
+          }
+        } catch (e) {
+          itemsTitle = item.items;
+        }
+
         const row = document.createElement('div');
         row.className = 'bazaar-item-row';
         row.innerHTML = `
           <div class="bazaar-item-meta">
-            <span class="bazaar-item-title">${item.items}</span>
+            <span class="bazaar-item-title">${itemsTitle}</span>
             <span class="bazaar-item-desc">Bought by <strong>${buyerName}</strong> on ${this.formatReadableDate(item.date)}</span>
           </div>
           <span class="bazaar-item-amount">৳${Number(item.amount).toFixed(2)}</span>
@@ -696,11 +710,29 @@ class MessManagementApp {
       const buyer = this.state.members.find(m => m.id === item.memberId);
       const buyerName = buyer ? buyer.name : 'Deleted Member';
       
+      // Parse items as JSON or fallback to legacy text
+      let itemsHtml = '';
+      try {
+        const parsedItems = JSON.parse(item.items);
+        if (Array.isArray(parsedItems)) {
+          itemsHtml = `<div class="itemized-badges">` + 
+            parsedItems.map((it, idx) => {
+              const hue = (idx * 137.5) % 360;
+              return `<span class="item-badge" style="background: hsla(${hue}, 70%, 50%, 0.12); border: 1px solid hsla(${hue}, 70%, 50%, 0.3); color: hsl(${hue}, 85%, 65%);" title="${it.name}">${it.name} (${it.qty || '1'}): <strong style="color: var(--success-color); margin-left: 4px;">৳${it.price}</strong></span>`;
+            }).join('') + 
+            `</div>`;
+        } else {
+          itemsHtml = item.items;
+        }
+      } catch (e) {
+        itemsHtml = item.items;
+      }
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${this.formatReadableDate(item.date)}</td>
         <td><strong>${buyerName}</strong></td>
-        <td>${item.items}</td>
+        <td>${itemsHtml}</td>
         <td class="right-align" style="font-weight: 700;">৳${Number(item.amount).toFixed(2)}</td>
         <td class="center-align">
           <div style="display: flex; gap: 8px; justify-content: center;">
@@ -899,10 +931,29 @@ class MessManagementApp {
     const memberId = document.getElementById('bazaar-member-id').value;
     const amount = parseFloat(document.getElementById('bazaar-amount').value);
     const date = document.getElementById('bazaar-date').value;
-    const items = document.getElementById('bazaar-items').value.trim();
 
-    if (!memberId || isNaN(amount) || !date || !items) return;
+    if (!memberId || isNaN(amount) || amount <= 0 || !date) {
+      alert("Please ensure a buyer is chosen, date is valid, and total cost is greater than 0.");
+      return;
+    }
 
+    // Build itemized JSON array from input rows
+    const itemRows = [];
+    document.querySelectorAll('.bazaar-item-form-row').forEach(row => {
+      const name = row.querySelector('.baz-it-name').value.trim();
+      const qty = row.querySelector('.baz-it-qty').value.trim() || '1';
+      const price = parseFloat(row.querySelector('.baz-it-price').value) || 0;
+      if (name) {
+        itemRows.push({ name, qty, price });
+      }
+    });
+
+    if (itemRows.length === 0) {
+      alert("Please add at least one item with a name.");
+      return;
+    }
+
+    const items = JSON.stringify(itemRows);
     const payload = { id, memberId, amount, date, items };
 
     try {
@@ -1184,6 +1235,54 @@ class MessManagementApp {
     setTimeout(() => modal.classList.add('active'), 10);
   }
 
+  // --- Helper: Create a single dynamic grocery item input row in bazaar modal ---
+  createBazaarItemRow(name = '', qty = '', price = 0) {
+    const container = document.getElementById('bazaar-items-list');
+    const rowId = 'baz-item-row-' + Date.now() + Math.random().toString(36).substr(2, 5);
+    
+    const row = document.createElement('div');
+    row.className = 'bazaar-item-form-row';
+    row.id = rowId;
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+    row.style.marginBottom = '6px';
+    
+    row.innerHTML = `
+      <input type="text" placeholder="Item Name (e.g. Beef)" required class="form-control baz-it-name" style="flex: 2; font-size: 0.9rem; padding: 6px 10px;" value="${name}">
+      <input type="text" placeholder="Qty (e.g. 2kg)" class="form-control baz-it-qty" style="flex: 1; font-size: 0.9rem; padding: 6px 10px;" value="${qty}">
+      <input type="number" min="0" placeholder="Price" required class="form-control baz-it-price" style="width: 100px; font-size: 0.9rem; padding: 6px 10px;" value="${price || ''}">
+      <button type="button" class="secondary-btn btn-delete-baz-item" style="color: var(--danger-color); padding: 6px 10px; min-width: auto; height: 35px; display: flex; align-items: center; justify-content: center;" title="Remove Item">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
+          <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
+        </svg>
+      </button>
+    `;
+    
+    // Add delete listener
+    row.querySelector('.btn-delete-baz-item').addEventListener('click', () => {
+      row.remove();
+      this.recalculateBazaarFormTotal();
+    });
+    
+    // Add price change listener to auto-calculate sum
+    row.querySelector('.baz-it-price').addEventListener('input', () => {
+      this.recalculateBazaarFormTotal();
+    });
+    
+    container.appendChild(row);
+  }
+
+  // --- Helper: Recalculate and update the running total cost inside modal ---
+  recalculateBazaarFormTotal() {
+    let total = 0;
+    document.querySelectorAll('.baz-it-price').forEach(input => {
+      total += parseFloat(input.value) || 0;
+    });
+    document.getElementById('bazaar-amount').value = total;
+  }
+
   openBazaarModal(editId = '') {
     this.resetAllForms();
     const modal = document.getElementById('modal-bazaar');
@@ -1197,6 +1296,9 @@ class MessManagementApp {
       select.innerHTML += `<option value="${m.id}">${m.name}</option>`;
     });
 
+    const itemsList = document.getElementById('bazaar-items-list');
+    itemsList.innerHTML = '';
+
     if (editId) {
       const item = this.state.bazaar.find(b => b.id === editId);
       if (item) {
@@ -1205,12 +1307,30 @@ class MessManagementApp {
         document.getElementById('bazaar-member-id').value = item.memberId;
         document.getElementById('bazaar-amount').value = item.amount;
         document.getElementById('bazaar-date').value = item.date;
-        document.getElementById('bazaar-items').value = item.items;
+        
+        try {
+          const parsed = JSON.parse(item.items);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(it => {
+              this.createBazaarItemRow(it.name, it.qty, it.price);
+            });
+          } else {
+            // Fallback for plain-text legacy entries
+            this.createBazaarItemRow(item.items, '1', item.amount);
+          }
+        } catch (e) {
+          // Fallback for plain-text legacy entries
+          this.createBazaarItemRow(item.items, '1', item.amount);
+        }
       }
     } else {
       titleEl.textContent = 'Record Bazaar Expense';
       document.getElementById('bazaar-edit-id').value = '';
       document.getElementById('bazaar-date').value = this.formatDate(new Date());
+      document.getElementById('bazaar-amount').value = '';
+      
+      // Auto-inject first empty item row by default
+      this.createBazaarItemRow();
     }
 
     backdrop.style.display = 'block';

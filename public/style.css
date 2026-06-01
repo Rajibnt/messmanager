@@ -1580,3 +1580,55 @@ body {
     overflow: visible !important;
   }
 }
+
+/* ==========================================================================
+   Grocery Item-Wise List & Badges Styles
+   ========================================================================== */
+.itemized-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.item-badge {
+  background: var(--input-bg);
+  color: var(--primary-color);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-fast);
+}
+
+.item-badge:hover {
+  border-color: var(--primary-color);
+}
+
+.item-badge strong {
+  color: var(--success-color);
+}
+
+.bazaar-item-form-row input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+/* Custom Scrollbar for bazaar modal list */
+#bazaar-items-list::-webkit-scrollbar {
+  width: 6px;
+}
+#bazaar-items-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+#bazaar-items-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+#bazaar-items-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

@@ -578,16 +578,23 @@
         </select>
       </div>
       <div class="form-group">
-        <label for="bazaar-amount">Total Cost Amount (৳) *</label>
-        <input type="number" id="bazaar-amount" min="1" required placeholder="e.g., 850" class="form-control">
-      </div>
-      <div class="form-group">
         <label for="bazaar-date">Bazaar Date *</label>
         <input type="date" id="bazaar-date" required class="form-control">
       </div>
       <div class="form-group">
-        <label for="bazaar-items">Items Purchased *</label>
-        <textarea id="bazaar-items" required placeholder="e.g., Rice 10kg, Chicken 2kg, Potatoes, Cooking Oil" class="form-control text-area"></textarea>
+        <label style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Grocery Items *</span>
+          <button type="button" id="btn-add-bazaar-item" class="secondary-btn small-btn" style="padding: 4px 10px; font-size: 0.8rem;">
+            ➕ Add Item
+          </button>
+        </label>
+        <div id="bazaar-items-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
+          <!-- Dynamically generated rows inside JS -->
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="bazaar-amount">Total Cost Amount (৳) [Auto-calculated]</label>
+        <input type="number" id="bazaar-amount" min="1" required readonly placeholder="0.00" class="form-control" style="background: rgba(255, 255, 255, 0.05); cursor: not-allowed; font-weight: bold; color: var(--success-color);">
       </div>
       <div class="modal-footer">
         <button type="button" class="secondary-btn" id="btn-cancel-bazaar">Cancel</button>
