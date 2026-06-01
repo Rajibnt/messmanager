@@ -27,14 +27,17 @@ class MessManagementApp {
     // 1. Initialize DOM event listeners immediately so buttons work instantly!
     this.bindEvents();
 
-    // 2. Perform initial UI render with local empty state
+    // 2. Load cached data from LocalStorage first so the user sees their data INSTANTLY on refresh!
+    this.loadFromLocalStorage();
+
+    // 3. Perform initial UI render with local state (loaded from cache)
     this.switchTab(this.state.activeTab);
     this.updateGlobalCalculations();
 
-    // 3. Fetch live data from Express Server
+    // 4. Fetch live data from Express Server and update cache
     await this.loadFromServer();
 
-    // 4. Setup smart polling: Fetch live data from the server every 5 seconds.
+    // 5. Setup smart polling: Fetch live data from the server every 5 seconds.
     // This provides a fully real-time synced experience across all phones & devices!
     setInterval(() => this.loadFromServer(), 5000);
   }
@@ -53,13 +56,111 @@ class MessManagementApp {
         this.state.otherExpenses = data.otherExpenses || [];
         this.state.deposits = data.deposits || [];
         
+        // Save to LocalStorage as a cached backup
+        this.saveToLocalStorage();
+
         // Re-render active views with fresh server data
         this.renderActiveTabContent();
         this.updateGlobalCalculations();
       }
     } catch (err) {
       console.warn("Express Server connection failed. App running in standalone fallback mode.", err);
+      // Local fallback: load from LocalStorage to keep user's state intact
+      this.loadFromLocalStorage();
     }
+  }
+
+  // --- Helper: Save complete state to LocalStorage ---
+  saveToLocalStorage() {
+    try {
+      localStorage.setItem('elitemess_state', JSON.stringify({
+        members: this.state.members,
+        meals: this.state.meals,
+        bazaar: this.state.bazaar,
+        otherExpenses: this.state.otherExpenses,
+        deposits: this.state.deposits
+      }));
+    } catch (err) {
+      console.error("Failed to save to localStorage", err);
+    }
+  }
+
+  // --- Helper: Load complete state from LocalStorage ---
+  loadFromLocalStorage() {
+    try {
+      const raw = localStorage.getItem('elitemess_state');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        this.state.members = parsed.members || [];
+        this.state.meals = parsed.meals || {};
+        this.state.bazaar = parsed.bazaar || [];
+        this.state.otherExpenses = parsed.otherExpenses || [];
+        this.state.deposits = parsed.deposits || [];
+        
+        // Re-render active views
+        this.renderActiveTabContent();
+        this.updateGlobalCalculations();
+        console.log("EliteMess successfully loaded backup state from localStorage.");
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to load from localStorage", err);
+    }
+    
+    // Seed initial local fallback data if completely empty so the user doesn't see a blank slate
+    if (this.state.members.length === 0) {
+      this.seedLocalMockData();
+    }
+    return false;
+  }
+
+  // --- Helper: Seed realistic offline fallback mock data ---
+  seedLocalMockData() {
+    console.log("Seeding beautiful local mock data...");
+    const today = new Date();
+    const dStr = (offset) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - offset);
+      return this.formatDate(d);
+    };
+
+    this.state.members = [
+      { id: 'mem-1', name: 'Rakib Ahmed', phone: '01711223344', email: 'rakib@gmail.com' },
+      { id: 'mem-2', name: 'Abir Hasan', phone: '01999887766', email: 'abir@gmail.com' },
+      { id: 'mem-3', name: 'Sajid Islam', phone: '01555443322', email: 'sajid@gmail.com' }
+    ];
+
+    this.state.deposits = [
+      { id: 'dep-1', memberId: 'mem-1', amount: 3000, date: dStr(5), notes: 'Bkash Deposit' },
+      { id: 'dep-2', memberId: 'mem-2', amount: 2500, date: dStr(5), notes: 'Cash Deposit' },
+      { id: 'dep-3', memberId: 'mem-3', amount: 3500, date: dStr(5), notes: 'Cash Deposit' },
+      { id: 'dep-4', memberId: 'mem-1', amount: 1000, date: dStr(2), notes: 'Hand Cash' }
+    ];
+
+    this.state.bazaar = [
+      { id: 'baz-1', memberId: 'mem-1', amount: 1450, date: dStr(4), items: 'Beef 2kg, Cooking Oil 2L, Onions, Spices' },
+      { id: 'baz-2', memberId: 'mem-2', amount: 820, date: dStr(3), items: 'Miniket Rice 10kg, Potato 5kg, Lentils 2kg' },
+      { id: 'baz-3', memberId: 'mem-3', amount: 560, date: dStr(1), items: 'Chicken 1.5kg, Eggs 1 Dozen, Green Chillies' }
+    ];
+
+    this.state.otherExpenses = [
+      { id: 'oth-1', title: 'Internet Wi-Fi', category: 'Internet', amount: 600, date: dStr(4) },
+      { id: 'oth-2', title: 'Electricity Bill', category: 'Electricity', amount: 1200, date: dStr(2) }
+    ];
+
+    this.state.meals = {};
+    for (let i = 0; i < 5; i++) {
+      const dateStr = dStr(i);
+      this.state.meals[dateStr] = {
+        'mem-1': { breakfast: i === 0 ? 0.5 : 1, lunch: 1, dinner: 1 },
+        'mem-2': { breakfast: 0, lunch: 1, dinner: 1 },
+        'mem-3': { breakfast: 1, lunch: 1, dinner: 1 }
+      };
+    }
+
+    this.saveToLocalStorage();
+    this.renderActiveTabContent();
+    this.updateGlobalCalculations();
   }
 
   // ==========================================================================
@@ -672,6 +773,8 @@ class MessManagementApp {
 
     if (!name) return;
 
+    const targetId = id || 'mem-' + Date.now();
+    const localMember = { id: targetId, name, phone, email };
     const payload = { id, name, phone, email, initialDeposit: depositVal };
     
     try {
@@ -685,13 +788,32 @@ class MessManagementApp {
         this.closeAllModals();
         await this.loadFromServer();
         this.switchTab('members');
-      } else {
-        alert("Failed to save member on server!");
+        return;
       }
     } catch (err) {
-      console.error(err);
-      alert("Network connection error to API server!");
+      console.warn("Server POST failed. Performing local storage fallback.", err);
     }
+
+    // Local Fallback: Update locally and save to cache
+    if (id) {
+      this.state.members = this.state.members.map(m => m.id === id ? localMember : m);
+    } else {
+      this.state.members.push(localMember);
+      if (depositVal > 0) {
+        this.state.deposits.push({
+          id: 'dep-' + Date.now(),
+          memberId: targetId,
+          amount: depositVal,
+          date: this.formatDate(new Date()),
+          notes: "Initial Capital Deposit"
+        });
+      }
+    }
+    this.saveToLocalStorage();
+    this.closeAllModals();
+    this.renderActiveTabContent();
+    this.updateGlobalCalculations();
+    this.switchTab('members');
   }
 
   // --- Deposit Form Submit ---
@@ -717,12 +839,25 @@ class MessManagementApp {
         this.closeAllModals();
         await this.loadFromServer();
         this.switchTab('members');
-      } else {
-        alert("Failed to save deposit on server!");
+        return;
       }
     } catch (err) {
-      console.error(err);
+      console.warn("Server POST failed. Performing local storage fallback.", err);
     }
+
+    // Local Fallback: Update locally and save to cache
+    this.state.deposits.push({
+      id: 'dep-' + Date.now(),
+      memberId,
+      amount,
+      date,
+      notes: notes || 'Logged Deposit'
+    });
+    this.saveToLocalStorage();
+    this.closeAllModals();
+    this.renderActiveTabContent();
+    this.updateGlobalCalculations();
+    this.switchTab('members');
   }
 
   // --- Bazaar Form Submit ---
@@ -749,12 +884,25 @@ class MessManagementApp {
         this.closeAllModals();
         await this.loadFromServer();
         this.switchTab('bazaar');
-      } else {
-        alert("Failed to save bazaar receipt on server!");
+        return;
       }
     } catch (err) {
-      console.error(err);
+      console.warn("Server POST failed. Performing local storage fallback.", err);
     }
+
+    // Local Fallback: Update locally and save to cache
+    const targetId = id || 'baz-' + Date.now();
+    const localBazaar = { id: targetId, memberId, amount, date, items };
+    if (id) {
+      this.state.bazaar = this.state.bazaar.map(b => b.id === id ? localBazaar : b);
+    } else {
+      this.state.bazaar.push(localBazaar);
+    }
+    this.saveToLocalStorage();
+    this.closeAllModals();
+    this.renderActiveTabContent();
+    this.updateGlobalCalculations();
+    this.switchTab('bazaar');
   }
 
   // --- Shared Expense Form Submit ---
@@ -781,12 +929,25 @@ class MessManagementApp {
         this.closeAllModals();
         await this.loadFromServer();
         this.switchTab('expenses');
-      } else {
-        alert("Failed to save shared expense on server!");
+        return;
       }
     } catch (err) {
-      console.error(err);
+      console.warn("Server POST failed. Performing local storage fallback.", err);
     }
+
+    // Local Fallback: Update locally and save to cache
+    const targetId = id || 'oth-' + Date.now();
+    const localExpense = { id: targetId, title, category, amount, date };
+    if (id) {
+      this.state.otherExpenses = this.state.otherExpenses.map(e => e.id === id ? localExpense : e);
+    } else {
+      this.state.otherExpenses.push(localExpense);
+    }
+    this.saveToLocalStorage();
+    this.closeAllModals();
+    this.renderActiveTabContent();
+    this.updateGlobalCalculations();
+    this.switchTab('expenses');
   }
 
   // ==========================================================================
@@ -798,10 +959,17 @@ class MessManagementApp {
         const res = await fetch(`/api/bazaar/${id}`, { method: 'DELETE' });
         if (res.ok) {
           await this.loadFromServer();
+          return;
         }
       } catch (err) {
-        console.error(err);
+        console.warn("Server DELETE failed. Performing local storage fallback.", err);
       }
+
+      // Local Fallback: Remove locally and save to cache
+      this.state.bazaar = this.state.bazaar.filter(b => b.id !== id);
+      this.saveToLocalStorage();
+      this.renderActiveTabContent();
+      this.updateGlobalCalculations();
     }
   }
 
@@ -811,10 +979,17 @@ class MessManagementApp {
         const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
         if (res.ok) {
           await this.loadFromServer();
+          return;
         }
       } catch (err) {
-        console.error(err);
+        console.warn("Server DELETE failed. Performing local storage fallback.", err);
       }
+
+      // Local Fallback: Remove locally and save to cache
+      this.state.otherExpenses = this.state.otherExpenses.filter(e => e.id !== id);
+      this.saveToLocalStorage();
+      this.renderActiveTabContent();
+      this.updateGlobalCalculations();
     }
   }
 
@@ -849,10 +1024,26 @@ class MessManagementApp {
       if (res.ok) {
         alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully! Cloud updated.`);
         await this.loadFromServer();
+        return;
       }
     } catch (err) {
-      console.error(err);
+      console.warn("Server POST failed. Performing local storage fallback.", err);
     }
+
+    // Local Fallback: Update locally and save to cache
+    if (!this.state.meals[todayStr]) {
+      this.state.meals[todayStr] = {};
+    }
+    memberMeals.forEach(m => {
+      this.state.meals[todayStr][m.memberId] = {
+        breakfast: m.breakfast,
+        lunch: m.lunch,
+        dinner: m.dinner
+      };
+    });
+    this.saveToLocalStorage();
+    alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully (Offline local backup)!`);
+    this.renderMealBook();
   }
 
   async resetMonthData() {
@@ -863,10 +1054,22 @@ class MessManagementApp {
           alert("All monthly records, bazaar entries, deposits, and meals have been successfully reset. Active member accounts are retained.");
           await this.loadFromServer();
           this.switchTab('dashboard');
+          return;
         }
       } catch (err) {
-        console.error(err);
+        console.warn("Server POST failed. Performing local storage fallback.", err);
       }
+
+      // Local Fallback: Reset transactional states and cache
+      this.state.meals = {};
+      this.state.bazaar = [];
+      this.state.otherExpenses = [];
+      this.state.deposits = [];
+      this.saveToLocalStorage();
+      alert("All monthly records, bazaar entries, deposits, and meals have been successfully reset locally.");
+      this.renderActiveTabContent();
+      this.updateGlobalCalculations();
+      this.switchTab('dashboard');
     }
   }
 
