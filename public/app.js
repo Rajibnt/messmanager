@@ -32,14 +32,17 @@ class MessManagementApp {
     // 2. Load cached data from LocalStorage first so the user sees their data INSTANTLY on refresh!
     this.loadFromLocalStorage();
 
-    // 3. Perform initial UI render with local state (loaded from cache)
+    // 3. Verify session role access
+    this.checkSession();
+
+    // 4. Perform initial UI render with local state (loaded from cache)
     this.switchTab(this.state.activeTab);
     this.updateGlobalCalculations();
 
-    // 4. Fetch live data from Express Server and update cache
+    // 5. Fetch live data from Express Server and update cache
     await this.loadFromServer();
 
-    // 5. Setup smart polling: Fetch live data from the server every 5 seconds.
+    // 6. Setup smart polling: Fetch live data from the server every 5 seconds.
     // This provides a fully real-time synced experience across all phones & devices!
     setInterval(() => this.loadFromServer(), 5000);
   }
@@ -376,8 +379,13 @@ class MessManagementApp {
     
     switch (tabName) {
       case 'dashboard':
-        titleEl.textContent = 'Dashboard Overview';
-        subEl.textContent = 'Live financial audit and overview of your shared mess workspace';
+        if (this.currentUser && this.currentUser.role === 'member') {
+          titleEl.textContent = `Welcome, ${this.currentUser.name}!`;
+          subEl.textContent = 'Personal boarder account ledger and meal reservations';
+        } else {
+          titleEl.textContent = 'Dashboard Overview';
+          subEl.textContent = 'Live financial audit and overview of your shared mess workspace';
+        }
         break;
       case 'members':
         titleEl.textContent = 'Mess Members';
@@ -535,6 +543,8 @@ class MessManagementApp {
     const container = document.getElementById('members-card-container');
     container.innerHTML = '';
 
+    const isMember = this.currentUser && this.currentUser.role === 'member';
+
     if (this.state.members.length === 0) {
       container.innerHTML = `
         <div class="card empty-state" style="grid-column: 1 / -1; width: 100%;">
@@ -591,7 +601,7 @@ class MessManagementApp {
 
         <div class="member-card-actions">
           <button class="secondary-btn small-btn" onclick="app.openMemberLedgerModal('${member.id}')">Detailed Ledger</button>
-          <button class="secondary-btn small-btn" onclick="app.openMemberModal('${member.id}')" title="Edit member profiles">Edit Profile</button>
+          ${(!isMember || member.id === this.currentUser.memberId) ? `<button class="secondary-btn small-btn" onclick="app.openMemberModal('${member.id}')" title="Edit member profiles">Edit Profile</button>` : ''}
         </div>
       `;
       container.appendChild(card);
@@ -614,23 +624,52 @@ class MessManagementApp {
       return;
     }
 
+    // Calculate difference in days for 2-day lock check
+    const selectedDate = new Date(todayStr + 'T00:00:00');
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const diffTime = selectedDate.getTime() - todayDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const isMember = this.currentUser && this.currentUser.role === 'member';
+    const isLocked = isMember && diffDays < 2;
+
+    const lockAlert = document.getElementById('meal-booking-lock-alert');
+    const saveBtn = document.getElementById('btn-save-meals');
+
+    if (isLocked) {
+      if (lockAlert) {
+        lockAlert.style.display = 'inline-flex';
+        lockAlert.className = 'alert-lock-message';
+        lockAlert.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          🔒 Locked: Bookings must be placed at least 2 days in advance. (Current: ${diffDays <= 0 ? 'Past/Today' : diffDays + ' day advance'})
+        `;
+      }
+      if (saveBtn) saveBtn.style.display = 'none';
+    } else {
+      if (lockAlert) lockAlert.style.display = 'none';
+      if (saveBtn) saveBtn.style.display = 'inline-block';
+    }
+
     this.state.members.forEach(member => {
       const records = dayMeals[member.id] || { breakfast: 0, lunch: 0, dinner: 0 };
+      const isInputDisabled = isLocked || (isMember && member.id !== this.currentUser.memberId);
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><strong>${member.name}</strong></td>
+        <td><strong>${member.name}</strong> ${isMember && member.id === this.currentUser.memberId ? '<span class="info-badge" style="background: var(--primary-glow); color: var(--primary-color);">You</span>' : ''}</td>
         <td class="center-align">
           <input type="number" step="0.5" min="0" max="5" class="meal-input-spinner" 
-            id="meal-b-${member.id}" value="${records.breakfast || 0}">
+            id="meal-b-${member.id}" value="${records.breakfast || 0}" ${isInputDisabled ? 'disabled' : ''}>
         </td>
         <td class="center-align">
           <input type="number" step="0.5" min="0" max="5" class="meal-input-spinner" 
-            id="meal-l-${member.id}" value="${records.lunch || 0}">
+            id="meal-l-${member.id}" value="${records.lunch || 0}" ${isInputDisabled ? 'disabled' : ''}>
         </td>
         <td class="center-align">
           <input type="number" step="0.5" min="0" max="5" class="meal-input-spinner" 
-            id="meal-d-${member.id}" value="${records.dinner || 0}">
+            id="meal-d-${member.id}" value="${records.dinner || 0}" ${isInputDisabled ? 'disabled' : ''}>
         </td>
         <td class="center-align" style="font-weight: 700;" id="meal-total-${member.id}">
           ${((Number(records.breakfast) || 0) + (Number(records.lunch) || 0) + (Number(records.dinner) || 0)).toFixed(1)}
@@ -706,6 +745,8 @@ class MessManagementApp {
     // Sort Bazaar by date descending
     const sortedBazaar = [...this.state.bazaar].sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    const isMember = this.currentUser && this.currentUser.role === 'member';
+
     sortedBazaar.forEach(item => {
       const buyer = this.state.members.find(m => m.id === item.memberId);
       const buyerName = buyer ? buyer.name : 'Deleted Member';
@@ -728,6 +769,15 @@ class MessManagementApp {
         itemsHtml = item.items;
       }
 
+      const actionsHtml = isMember ? `
+        <span class="info-badge" style="background: rgba(255,255,255,0.03); color: var(--text-muted); padding: 4px 8px;">View Only</span>
+      ` : `
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button class="secondary-btn small-btn" onclick="app.openBazaarModal('${item.id}')" title="Edit cost details">Edit</button>
+          <button class="secondary-btn small-btn" style="color: var(--danger-color);" onclick="app.deleteBazaar('${item.id}')">Delete</button>
+        </div>
+      `;
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${this.formatReadableDate(item.date)}</td>
@@ -735,10 +785,7 @@ class MessManagementApp {
         <td>${itemsHtml}</td>
         <td class="right-align" style="font-weight: 700;">৳${Number(item.amount).toFixed(2)}</td>
         <td class="center-align">
-          <div style="display: flex; gap: 8px; justify-content: center;">
-            <button class="secondary-btn small-btn" onclick="app.openBazaarModal('${item.id}')" title="Edit cost details">Edit</button>
-            <button class="secondary-btn small-btn" style="color: var(--danger-color);" onclick="app.deleteBazaar('${item.id}')">Delete</button>
-          </div>
+          ${actionsHtml}
         </td>
       `;
       body.appendChild(tr);
@@ -757,7 +804,18 @@ class MessManagementApp {
     // Sort expenses by date descending
     const sortedExpenses = [...this.state.otherExpenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    const isMember = this.currentUser && this.currentUser.role === 'member';
+
     sortedExpenses.forEach(exp => {
+      const actionsHtml = isMember ? `
+        <span class="info-badge" style="background: rgba(255,255,255,0.03); color: var(--text-muted); padding: 4px 8px;">View Only</span>
+      ` : `
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button class="secondary-btn small-btn" onclick="app.openExpenseModal('${exp.id}')">Edit</button>
+          <button class="secondary-btn small-btn" style="color: var(--danger-color);" onclick="app.deleteExpense('${exp.id}')">Delete</button>
+        </div>
+      `;
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>${exp.title}</strong></td>
@@ -765,10 +823,7 @@ class MessManagementApp {
         <td>${this.formatReadableDate(exp.date)}</td>
         <td class="right-align" style="font-weight: 700;">৳${Number(exp.amount).toFixed(2)}</td>
         <td class="center-align">
-          <div style="display: flex; gap: 8px; justify-content: center;">
-            <button class="secondary-btn small-btn" onclick="app.openExpenseModal('${exp.id}')">Edit</button>
-            <button class="secondary-btn small-btn" style="color: var(--danger-color);" onclick="app.deleteExpense('${exp.id}')">Delete</button>
-          </div>
+          ${actionsHtml}
         </td>
       `;
       body.appendChild(tr);
@@ -1591,6 +1646,214 @@ class MessManagementApp {
     const year = date.getFullYear();
     
     return `${day < 10 ? '0' + day : day}-${month}-${year}`;
+  }
+
+  // ==========================================================================
+  // Auth & Session Management Helpers (Role-Based Access Control)
+  // ==========================================================================
+  checkSession() {
+    try {
+      const rawUser = localStorage.getItem('elitemess_user');
+      if (rawUser) {
+        this.currentUser = JSON.parse(rawUser);
+        this.applyRoleAccessControl();
+      } else {
+        this.currentUser = null;
+        const gateway = document.getElementById('identity-gateway');
+        if (gateway) gateway.style.display = 'flex';
+        this.resetGateway();
+      }
+    } catch (e) {
+      console.error("Session verification failed", e);
+      this.logout();
+    }
+  }
+
+  applyRoleAccessControl() {
+    const gateway = document.getElementById('identity-gateway');
+    if (gateway) gateway.style.display = 'none';
+
+    if (!this.currentUser) return;
+
+    const isMember = this.currentUser.role === 'member';
+
+    // 1. Hide or show managerial capabilities
+    const quickDepositBtn = document.getElementById('btn-quick-deposit');
+    const addMemberBtn = document.getElementById('btn-add-member');
+    const addExpenseBtn = document.getElementById('btn-add-expense');
+    const addBazaarBtn = document.getElementById('btn-add-bazaar');
+    const resetMonthBtn = document.getElementById('btn-reset-month');
+
+    if (isMember) {
+      if (quickDepositBtn) quickDepositBtn.style.display = 'none';
+      if (addMemberBtn) addMemberBtn.style.display = 'none';
+      if (addExpenseBtn) addExpenseBtn.style.display = 'none';
+      if (addBazaarBtn) addBazaarBtn.style.display = 'none';
+      if (resetMonthBtn) resetMonthBtn.style.display = 'none';
+    } else {
+      if (quickDepositBtn) quickDepositBtn.style.display = 'inline-flex';
+      if (addMemberBtn) addMemberBtn.style.display = 'inline-flex';
+      if (addExpenseBtn) addExpenseBtn.style.display = 'inline-flex';
+      if (addBazaarBtn) addBazaarBtn.style.display = 'inline-flex';
+      if (resetMonthBtn) resetMonthBtn.style.display = 'inline-flex';
+    }
+
+    // 2. Refresh active UI tabs
+    this.renderActiveTabContent();
+  }
+
+  showManagerLogin() {
+    const mainOpts = document.getElementById('gateway-main-options');
+    const mForm = document.getElementById('manager-login-form');
+    if (mainOpts) mainOpts.style.display = 'none';
+    if (mForm) mForm.style.display = 'block';
+    
+    const pinInput = document.getElementById('manager-pin');
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.focus();
+    }
+  }
+
+  showBoarderLogin() {
+    const mainOpts = document.getElementById('gateway-main-options');
+    const bForm = document.getElementById('boarder-login-form');
+    const bRegForm = document.getElementById('boarder-registration-form');
+    
+    if (mainOpts) mainOpts.style.display = 'none';
+    if (bRegForm) bRegForm.style.display = 'none';
+    if (bForm) bForm.style.display = 'block';
+    
+    this.populateBoarderSelectDropdown();
+  }
+
+  showBoarderRegistration() {
+    const bForm = document.getElementById('boarder-login-form');
+    const bRegForm = document.getElementById('boarder-registration-form');
+    
+    if (bForm) bForm.style.display = 'none';
+    if (bRegForm) bRegForm.style.display = 'block';
+    
+    // Reset registration form fields
+    const nameInput = document.getElementById('reg-name');
+    const phoneInput = document.getElementById('reg-phone');
+    const emailInput = document.getElementById('reg-email');
+    if (nameInput) nameInput.value = '';
+    if (phoneInput) phoneInput.value = '';
+    if (emailInput) emailInput.value = '';
+  }
+
+  resetGateway() {
+    const mainOpts = document.getElementById('gateway-main-options');
+    const mForm = document.getElementById('manager-login-form');
+    const bForm = document.getElementById('boarder-login-form');
+    const bRegForm = document.getElementById('boarder-registration-form');
+    
+    if (mForm) mForm.style.display = 'none';
+    if (bForm) bForm.style.display = 'none';
+    if (bRegForm) bRegForm.style.display = 'none';
+    if (mainOpts) mainOpts.style.display = 'grid';
+  }
+
+  populateBoarderSelectDropdown() {
+    const select = document.getElementById('boarder-select');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">-- Select Your Name --</option>';
+    this.state.members.forEach(m => {
+      select.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+    });
+  }
+
+  loginAsManager() {
+    const pinInput = document.getElementById('manager-pin');
+    const pin = pinInput ? pinInput.value.trim() : '';
+    
+    if (pin === '1234') {
+      this.currentUser = { role: 'manager', name: 'Mess Manager' };
+      localStorage.setItem('elitemess_user', JSON.stringify(this.currentUser));
+      this.applyRoleAccessControl();
+      this.loadFromServer(true);
+      if (pinInput) pinInput.value = '';
+    } else {
+      alert("❌ Incorrect passcode! The default passcode is 1234.");
+    }
+  }
+
+  loginAsBoarder() {
+    const select = document.getElementById('boarder-select');
+    const memberId = select ? select.value : '';
+    
+    if (!memberId) {
+      alert("⚠️ Please select your member profile from the dropdown.");
+      return;
+    }
+    
+    const member = this.state.members.find(m => m.id === memberId);
+    if (member) {
+      this.currentUser = { role: 'member', memberId: member.id, name: member.name };
+      localStorage.setItem('elitemess_user', JSON.stringify(this.currentUser));
+      this.applyRoleAccessControl();
+      this.loadFromServer(true);
+    } else {
+      alert("❌ Selected member profile was not found!");
+    }
+  }
+
+  async registerAndLoginBoarder() {
+    const name = document.getElementById('reg-name').value.trim();
+    const phone = document.getElementById('reg-phone').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    
+    if (!name || !phone) {
+      alert("⚠️ Name and Phone Number are required fields.");
+      return;
+    }
+    
+    const payload = { name, phone, email };
+    
+    try {
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const result = await res.json();
+        const memberId = result.id;
+        
+        // Log in immediately under this newly registered member
+        this.currentUser = { role: 'member', memberId, name };
+        localStorage.setItem('elitemess_user', JSON.stringify(this.currentUser));
+        this.applyRoleAccessControl();
+        await this.loadFromServer(true);
+        return;
+      }
+    } catch (err) {
+      console.warn("Server self-registration failed. Performing offline fallback.", err);
+    }
+    
+    // Offline local storage fallback
+    const offlineId = 'mem-' + Date.now();
+    const localMember = { id: offlineId, name, phone, email };
+    this.state.members.push(localMember);
+    this.saveToLocalStorage();
+    
+    this.currentUser = { role: 'member', memberId: offlineId, name };
+    localStorage.setItem('elitemess_user', JSON.stringify(this.currentUser));
+    this.applyRoleAccessControl();
+    this.renderActiveTabContent();
+  }
+
+  logout() {
+    localStorage.removeItem('elitemess_user');
+    this.currentUser = null;
+    
+    const gateway = document.getElementById('identity-gateway');
+    if (gateway) gateway.style.display = 'flex';
+    this.resetGateway();
+    this.loadFromServer(true);
   }
 }
 

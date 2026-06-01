@@ -13,6 +13,83 @@
 </head>
 <body>
 
+  <!-- Identity Gateway / Login Screen -->
+  <div id="identity-gateway" class="gateway-overlay">
+    <div class="gateway-card card">
+      <div class="gateway-header">
+        <h2>Elite<span>Mess</span></h2>
+        <p>Identity Verification & Role Selector Gateway</p>
+      </div>
+      
+      <div class="gateway-modes" id="gateway-main-options">
+        <!-- Card 1: Manager -->
+        <div class="gateway-mode-card" id="mode-manager" style="cursor: pointer;">
+          <div class="mode-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Mess Manager</h3>
+          <p>Full financial audit, database overrides, deposits & global meal booking logs.</p>
+          <button class="primary-btn" onclick="app.showManagerLogin()" style="pointer-events: none; width: 100%;">Enter as Manager</button>
+        </div>
+
+        <!-- Card 2: Boarder/Member -->
+        <div class="gateway-mode-card" id="mode-boarder" style="cursor: pointer;">
+          <div class="mode-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          </div>
+          <h3>Mess Boarder</h3>
+          <p>Self-registration, view personal balances, deposit history, and book own meals 2 days in advance.</p>
+          <button class="secondary-btn" onclick="app.showBoarderLogin()" style="pointer-events: none; width: 100%;">Enter as Boarder</button>
+        </div>
+      </div>
+
+      <!-- Login Sub-panels (Initially hidden) -->
+      <div id="manager-login-form" class="login-sub-panel" style="display: none;">
+        <h4 style="margin-bottom: 12px;">Enter Manager Passcode</h4>
+        <input type="password" id="manager-pin" class="form-control" placeholder="Default passcode is 1234" style="text-align: center; margin-bottom: 16px; font-size: 1.1rem; letter-spacing: 4px;">
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button class="secondary-btn small-btn" onclick="app.resetGateway()">Back</button>
+          <button class="primary-btn small-btn" onclick="app.loginAsManager()">Login</button>
+        </div>
+      </div>
+
+      <div id="boarder-login-form" class="login-sub-panel" style="display: none;">
+        <h4 style="margin-bottom: 12px;">Select Your Profile</h4>
+        <select id="boarder-select" class="form-control" style="margin-bottom: 16px;">
+          <!-- Populated dynamically -->
+        </select>
+        <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+          <div style="display: flex; gap: 8px; justify-content: center;">
+            <button class="secondary-btn small-btn" onclick="app.resetGateway()">Back</button>
+            <button class="primary-btn small-btn" onclick="app.loginAsBoarder()">Select & Enter</button>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0;">New boarder? Register yourself below:</p>
+          <button class="secondary-btn small-btn" onclick="app.showBoarderRegistration()" style="border-color: var(--primary-color); color: var(--primary-color); padding: 8px 16px;">✍️ Register as New Member</button>
+        </div>
+      </div>
+
+      <div id="boarder-registration-form" class="login-sub-panel" style="display: none;">
+        <h4 style="margin-bottom: 12px;">Self Member Registration</h4>
+        <div class="form-group" style="text-align: left; width: 100%; margin-bottom: 12px;">
+          <label style="font-size: 12px; margin-bottom: 4px; display: block;">Full Name *</label>
+          <input type="text" id="reg-name" required placeholder="e.g., Sifat Hasan" class="form-control">
+        </div>
+        <div class="form-group" style="text-align: left; width: 100%; margin-bottom: 12px;">
+          <label style="font-size: 12px; margin-bottom: 4px; display: block;">Phone Number *</label>
+          <input type="text" id="reg-phone" required placeholder="e.g., 018XXXXXXXX" class="form-control">
+        </div>
+        <div class="form-group" style="text-align: left; width: 100%; margin-bottom: 16px;">
+          <label style="font-size: 12px; margin-bottom: 4px; display: block;">Email Address</label>
+          <input type="email" id="reg-email" placeholder="e.g., sifat@gmail.com" class="form-control">
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button class="secondary-btn small-btn" onclick="app.showBoarderLogin()">Back</button>
+          <button class="primary-btn small-btn" onclick="app.registerAndLoginBoarder()">Submit & Login</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Root Layout -->
   <div class="app-container">
     
@@ -107,6 +184,12 @@
             Import
           </button>
           <input type="file" id="btn-import" accept=".json" style="display: none;">
+        </div>
+        <div style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px; width: 100%;" class="print-hide">
+          <button id="btn-logout" class="secondary-btn small-btn" onclick="app.logout()" style="width: 100%; border-color: var(--danger-color); color: var(--danger-color); justify-content: center; gap: 8px; font-weight: 600;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Logout / Switch Profile
+          </button>
         </div>
       </div>
     </aside>
@@ -276,6 +359,7 @@
               </button>
             </div>
             <button class="primary-btn" id="btn-save-meals">Save Meal Matrix</button>
+            <div id="meal-booking-lock-alert" style="display: none;"></div>
           </div>
 
           <!-- Interactive Grid/Matrix for Meals -->

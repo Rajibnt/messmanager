@@ -1756,3 +1756,150 @@ body {
     padding: 20px !important;
   }
 }
+
+/* ==========================================================================
+   Identity Gateway / Login Screen CSS
+   ========================================================================== */
+.gateway-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-color);
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeInGateway 0.4s ease forwards;
+}
+
+@keyframes fadeInGateway {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.gateway-card {
+  width: 100%;
+  max-width: 600px;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 40px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+}
+
+.gateway-header h2 {
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+
+.gateway-header h2 span {
+  color: var(--primary-color);
+}
+
+.gateway-header p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+.gateway-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 580px) {
+  .gateway-modes {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .gateway-card {
+    padding: 24px 16px;
+  }
+}
+
+.gateway-mode-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: var(--transition-fast);
+}
+
+.gateway-mode-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.mode-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--primary-glow);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.mode-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.gateway-mode-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.gateway-mode-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  min-height: 54px;
+  margin: 0 0 12px 0;
+}
+
+.login-sub-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 24px;
+  max-width: 400px;
+  margin: 0 auto;
+  animation: slideUpGateway 0.3s ease forwards;
+  width: 100%;
+}
+
+@keyframes slideUpGateway {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.alert-lock-message {
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  border: 1px solid var(--border-color);
+  padding: 10px 16px;
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

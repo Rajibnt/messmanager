@@ -261,6 +261,7 @@ app.post('/api/members', async (req, res) => {
   if (!name) return res.status(400).json({ error: "Name is required" });
 
   try {
+    let targetId = id;
     if (id) {
       // Edit mode
       await pool.query(
@@ -269,10 +270,10 @@ app.post('/api/members', async (req, res) => {
       );
     } else {
       // Insert mode
-      const newId = 'mem-' + Date.now();
+      targetId = 'mem-' + Date.now();
       await pool.query(
         'INSERT INTO members (id, name, phone, email) VALUES ($1, $2, $3, $4)',
-        [newId, name, phone, email]
+        [targetId, name, phone, email]
       );
 
       // Log initial deposit if provided
@@ -280,11 +281,11 @@ app.post('/api/members', async (req, res) => {
         const depId = 'dep-' + Date.now();
         await pool.query(
           'INSERT INTO deposits (id, member_id, amount, date, notes) VALUES ($1, $2, $3, $4, $5)',
-          [depId, newId, parseFloat(initialDeposit), formatDate(new Date()), "Initial Capital Deposit"]
+          [depId, targetId, parseFloat(initialDeposit), formatDate(new Date()), "Initial Capital Deposit"]
         );
       }
     }
-    res.json({ success: true });
+    res.json({ success: true, id: targetId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to save member" });
