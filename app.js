@@ -1210,6 +1210,8 @@ class MessManagementApp {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  }
+
   toggleMobileMenu() {
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) sidebar.classList.toggle('open');
