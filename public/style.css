@@ -1632,3 +1632,127 @@ body {
 #bazaar-items-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* ==========================================================================
+   Mobile Sidebar Overlay Backdrop Styles
+   ========================================================================== */
+.sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(2, 6, 23, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.sidebar-backdrop.active {
+  display: block;
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Mobile Responsive Screen Optimization (< 480px)
+   ========================================================================== */
+@media (max-width: 480px) {
+  .logo-area h2 {
+    font-size: 18px;
+  }
+  
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sidebar {
+    width: 250px;
+    padding: 20px 16px;
+  }
+
+  /* Modals Optimization for smaller displays */
+  .modal {
+    width: 95% !important;
+    max-height: 92vh !important;
+  }
+  
+  .modal-header {
+    padding: 16px 20px !important;
+  }
+
+  .modal-body {
+    padding: 16px 20px !important;
+  }
+
+  .modal-footer {
+    padding: 12px 20px !important;
+  }
+
+  /* Spacious form list items stacking */
+  .bazaar-item-form-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+  }
+
+  .bazaar-item-form-row input {
+    width: 100% !important;
+    font-size: 0.85rem !important;
+  }
+
+  .bazaar-item-form-row button {
+    align-self: flex-end;
+    margin-top: 4px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* App Workspace spacings */
+  .app-header {
+    padding: 16px 16px 12px 16px !important;
+  }
+
+  .view-viewport {
+    padding: 16px 16px !important;
+  }
+
+  .members-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .profile-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  
+  .p-stat {
+    padding: 8px !important;
+  }
+  
+  .p-lbl {
+    font-size: 10px !important;
+  }
+  
+  .p-val {
+    font-size: 13px !important;
+  }
+
+  /* General Table Enhancements */
+  .data-table th, 
+  .data-table td {
+    padding: 12px 10px !important;
+    font-size: 13px !important;
+  }
+
+  .billing-sheet {
+    padding: 20px !important;
+  }
+}

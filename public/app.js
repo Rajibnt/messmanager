@@ -1539,12 +1539,31 @@ class MessManagementApp {
 
   toggleMobileMenu() {
     const sidebar = document.querySelector('.sidebar');
-    if (sidebar) sidebar.classList.toggle('open');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) {
+      sidebar.classList.toggle('open');
+      if (sidebar.classList.contains('open')) {
+        if (backdrop) {
+          backdrop.style.display = 'block';
+          setTimeout(() => backdrop.classList.add('active'), 10);
+        }
+      } else {
+        if (backdrop) {
+          backdrop.classList.remove('active');
+          setTimeout(() => backdrop.style.display = 'none', 250);
+        }
+      }
+    }
   }
 
   closeMobileMenu() {
     const sidebar = document.querySelector('.sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
     if (sidebar) sidebar.classList.remove('open');
+    if (backdrop) {
+      backdrop.classList.remove('active');
+      setTimeout(() => backdrop.style.display = 'none', 250);
+    }
   }
 
   // Formats date object to YYYY-MM-DD
