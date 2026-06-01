@@ -443,25 +443,88 @@ class MessManagementApp {
   // --- Global recalculation and dashboard statistics updater ---
   updateGlobalCalculations() {
     const metrics = this.getCalculatedMetrics();
-    
-    // Update Dashboard metric values
-    document.getElementById('kpi-meal-rate').textContent = `৳${metrics.mealRate.toFixed(2)}`;
-    document.getElementById('kpi-total-meals').textContent = metrics.totalMeals.toFixed(1);
-    document.getElementById('kpi-total-bazaar').textContent = `৳${metrics.totalBazaar.toFixed(2)}`;
-    document.getElementById('kpi-total-shared').textContent = `৳${metrics.totalSharedExpenses.toFixed(2)}`;
+    const isMember = this.currentUser && this.currentUser.role === 'member';
+    const ledger = isMember ? metrics.memberLedgerMap[this.currentUser.memberId] : null;
 
-    document.getElementById('kpi-total-deposits').textContent = `৳${metrics.totalDeposits.toFixed(2)}`;
-    
-    const balEl = document.getElementById('kpi-active-balance');
-    balEl.textContent = `৳${metrics.activeBalance.toFixed(2)}`;
-    if (metrics.activeBalance < 0) {
-      balEl.style.color = 'var(--danger-color)';
+    if (isMember && ledger) {
+      // 1. Personalized Boarder Dashboard metrics
+      
+      // Update Labels dynamically to make it crystal clear to the boarder
+      document.getElementById('kpi-label-1').textContent = 'Meal Rate (Mess)';
+      document.getElementById('kpi-sublabel-1').textContent = 'Dynamic rate of the mess';
+      document.getElementById('kpi-meal-rate').textContent = `৳${metrics.mealRate.toFixed(2)}`;
+
+      document.getElementById('kpi-label-2').textContent = 'My Meals Eaten';
+      document.getElementById('kpi-sublabel-2').textContent = 'Eaten by me this month';
+      document.getElementById('kpi-total-meals').textContent = ledger.totalMealsEaten.toFixed(1);
+
+      document.getElementById('kpi-label-3').textContent = 'My Meal Cost';
+      document.getElementById('kpi-sublabel-3').textContent = 'My meals × dynamic meal rate';
+      document.getElementById('kpi-total-bazaar').textContent = `৳${ledger.mealCostIncurred.toFixed(2)}`;
+
+      document.getElementById('kpi-label-4').textContent = 'My Utility Share';
+      document.getElementById('kpi-sublabel-4').textContent = 'Equal split of fixed utilities';
+      document.getElementById('kpi-total-shared').textContent = `৳${ledger.sharedCostIncurred.toFixed(2)}`;
+
+      // Secondary personalized metrics
+      document.getElementById('sub-kpi-label-1').textContent = 'My Total Deposits';
+      document.getElementById('kpi-total-deposits').textContent = `৳${ledger.totalDeposits.toFixed(2)}`;
+
+      document.getElementById('sub-kpi-label-2').textContent = 'My Net Dues / Balance';
+      const balEl = document.getElementById('kpi-active-balance');
+      const isCredit = ledger.netBalance >= 0;
+      balEl.textContent = `${isCredit ? '+' : ''}৳${ledger.netBalance.toFixed(2)} (${isCredit ? 'Refund' : 'Owes'})`;
+      if (isCredit) {
+        balEl.style.color = 'var(--success-color)';
+      } else {
+        balEl.style.color = 'var(--danger-color)';
+      }
+
+      document.getElementById('sub-kpi-label-3').textContent = 'My Total Expenses';
+      const myExpenses = ledger.mealCostIncurred + ledger.sharedCostIncurred;
+      document.getElementById('kpi-total-spent').textContent = `৳${myExpenses.toFixed(2)}`;
+
+      document.getElementById('sub-kpi-label-4').textContent = 'My Bazaar Logs';
+      document.getElementById('kpi-total-members').textContent = `৳${ledger.totalBazaarContribution.toFixed(2)}`;
     } else {
-      balEl.style.color = 'var(--success-color)';
-    }
+      // 2. Manager / Global Mess Dashboard metrics
+      
+      // Restore default labels
+      document.getElementById('kpi-label-1').textContent = 'Meal Rate';
+      document.getElementById('kpi-sublabel-1').textContent = 'Calculated dynamically';
+      document.getElementById('kpi-meal-rate').textContent = `৳${metrics.mealRate.toFixed(2)}`;
 
-    document.getElementById('kpi-total-spent').textContent = `৳${metrics.totalSpent.toFixed(2)}`;
-    document.getElementById('kpi-total-members').textContent = this.state.members.length;
+      document.getElementById('kpi-label-2').textContent = 'Total Meals';
+      document.getElementById('kpi-sublabel-2').textContent = 'Eaten by all members';
+      document.getElementById('kpi-total-meals').textContent = metrics.totalMeals.toFixed(1);
+
+      document.getElementById('kpi-label-3').textContent = 'Bazaar Expenses';
+      document.getElementById('kpi-sublabel-3').textContent = 'Total grocery cost';
+      document.getElementById('kpi-total-bazaar').textContent = `৳${metrics.totalBazaar.toFixed(2)}`;
+
+      document.getElementById('kpi-label-4').textContent = 'Shared / Fixed Cost';
+      document.getElementById('kpi-sublabel-4').textContent = 'Utilities, Rent, Internet';
+      document.getElementById('kpi-total-shared').textContent = `৳${metrics.totalSharedExpenses.toFixed(2)}`;
+
+      // Restore default secondary labels
+      document.getElementById('sub-kpi-label-1').textContent = 'Total Deposits';
+      document.getElementById('kpi-total-deposits').textContent = `৳${metrics.totalDeposits.toFixed(2)}`;
+
+      document.getElementById('sub-kpi-label-2').textContent = 'Active Balance';
+      const balEl = document.getElementById('kpi-active-balance');
+      balEl.textContent = `৳${metrics.activeBalance.toFixed(2)}`;
+      if (metrics.activeBalance < 0) {
+        balEl.style.color = 'var(--danger-color)';
+      } else {
+        balEl.style.color = 'var(--success-color)';
+      }
+
+      document.getElementById('sub-kpi-label-3').textContent = 'Total Budget Spent';
+      document.getElementById('kpi-total-spent').textContent = `৳${metrics.totalSpent.toFixed(2)}`;
+
+      document.getElementById('sub-kpi-label-4').textContent = 'Total Members';
+      document.getElementById('kpi-total-members').textContent = this.state.members.length;
+    }
   }
 
   renderDashboard() {
