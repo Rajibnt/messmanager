@@ -44,39 +44,46 @@ class MessManagementApp {
   // Initialization & Realtime Firebase Database Synchronization
   // ==========================================================================
   init() {
-    console.log("Initializing EliteMess and establishing real-time Firebase connection...");
+    console.log("Initializing EliteMess...");
     
-    // 1. Set up real-time listener to the root path 'mess_data'
-    const dataRef = ref(db, 'mess_data');
-    onValue(dataRef, (snapshot) => {
-      const data = snapshot.val();
-      
-      if (data) {
-        console.log("Firebase sync: Loaded live updates from the cloud!");
-        this.state.members = data.members || [];
-        this.state.meals = data.meals || {};
-        this.state.bazaar = data.bazaar || [];
-        this.state.otherExpenses = data.otherExpenses || [];
-        this.state.deposits = data.deposits || [];
-      } else {
-        // If database is completely empty on launch, automatically seed default mock data
-        console.log("Firebase sync: Database is empty. Seeding gorgeous mock data...");
-        this.seedMockData();
-      }
+    // 1. Initialize DOM event listeners immediately so buttons work instantly!
+    this.bindEvents();
+    this.eventsBound = true;
 
-      // 2. Initialize DOM event listeners ONCE during initial sync
-      if (!this.eventsBound) {
-        this.bindEvents();
-        this.eventsBound = true;
-      }
+    // 2. Perform initial UI render with local empty state
+    this.switchTab(this.state.activeTab);
+    this.updateGlobalCalculations();
 
-      // 3. Dynamic render triggers to refresh active screen
-      this.switchTab(this.state.activeTab);
-      this.updateGlobalCalculations();
-    }, (error) => {
-      console.error("Firebase read connection failed! Checking security rules?", error);
-      alert("Database connection failed! Please make sure your Firebase Realtime Database Rules allow read/write (.read: true, .write: true).");
-    });
+    // 3. Connect to Realtime Firebase Database in the background
+    try {
+      const dataRef = ref(db, 'mess_data');
+      onValue(dataRef, (snapshot) => {
+        const data = snapshot.val();
+        
+        if (data) {
+          console.log("Firebase sync: Loaded live updates from the cloud!");
+          this.state.members = data.members || [];
+          this.state.meals = data.meals || {};
+          this.state.bazaar = data.bazaar || [];
+          this.state.otherExpenses = data.otherExpenses || [];
+          this.state.deposits = data.deposits || [];
+        } else {
+          // If database is completely empty on launch, automatically seed default mock data
+          console.log("Firebase sync: Database is empty. Seeding gorgeous mock data...");
+          this.seedMockData();
+        }
+
+        // Re-render UI with new live cloud data!
+        this.switchTab(this.state.activeTab);
+        this.updateGlobalCalculations();
+      }, (error) => {
+        console.error("Firebase read connection failed! Checking security rules?", error);
+        // Fallback alert: keep app functional offline!
+        console.warn("Cloud Database connection failed. Running in standalone fallback mode.");
+      });
+    } catch (err) {
+      console.error("Firebase setup failed: ", err);
+    }
   }
 
   // --- Commits state changes directly to Cloud Firebase Database ---
