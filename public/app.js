@@ -14,6 +14,8 @@ class MessManagementApp {
       selectedMealDate: this.formatDate(new Date())
     };
 
+    this.hasUnsavedMealEdits = false;
+
     // DOM Binding and Listeners
     this.init();
   }
@@ -51,10 +53,14 @@ class MessManagementApp {
       
       if (data && data.members) {
         this.state.members = data.members || [];
-        this.state.meals = data.meals || {};
         this.state.bazaar = data.bazaar || [];
         this.state.otherExpenses = data.otherExpenses || [];
         this.state.deposits = data.deposits || [];
+        
+        // Only overwrite meals state and active grid if there are no unsaved local edits
+        if (!this.hasUnsavedMealEdits) {
+          this.state.meals = data.meals || {};
+        }
         
         // Save to LocalStorage as a cached backup
         this.saveToLocalStorage();
@@ -92,10 +98,14 @@ class MessManagementApp {
       if (raw) {
         const parsed = JSON.parse(raw);
         this.state.members = parsed.members || [];
-        this.state.meals = parsed.meals || {};
         this.state.bazaar = parsed.bazaar || [];
         this.state.otherExpenses = parsed.otherExpenses || [];
         this.state.deposits = parsed.deposits || [];
+        
+        // Only overwrite meals state if there are no active unsaved edits
+        if (!this.hasUnsavedMealEdits) {
+          this.state.meals = parsed.meals || {};
+        }
         
         // Re-render active views
         this.renderActiveTabContent();
@@ -308,6 +318,15 @@ class MessManagementApp {
     datePicker.value = this.state.selectedMealDate;
     datePicker.addEventListener('change', (e) => {
       this.state.selectedMealDate = e.target.value;
+      
+      // Reset active edit states when switching date via picker
+      this.hasUnsavedMealEdits = false;
+      const saveBtn = document.getElementById('btn-save-meals');
+      if (saveBtn) {
+        saveBtn.textContent = '💾 Save Meals';
+        saveBtn.style.boxShadow = '';
+      }
+
       this.renderMealBook();
     });
 
@@ -605,6 +624,14 @@ class MessManagementApp {
         const l = parseFloat(document.getElementById(`meal-l-${member.id}`).value) || 0;
         const d = parseFloat(document.getElementById(`meal-d-${member.id}`).value) || 0;
         document.getElementById(`meal-total-${member.id}`).textContent = (b + l + d).toFixed(1);
+        
+        // Mark local edits active to prevent background polling from overriding them!
+        this.hasUnsavedMealEdits = true;
+        const saveBtn = document.getElementById('btn-save-meals');
+        if (saveBtn) {
+          saveBtn.textContent = '💾 Save Meals (Unsaved Changes)';
+          saveBtn.style.boxShadow = '0 0 12px var(--success-color)';
+        }
       };
 
       tr.querySelectorAll('input').forEach(input => {
@@ -1000,6 +1027,15 @@ class MessManagementApp {
     const curDate = new Date(this.state.selectedMealDate);
     curDate.setDate(curDate.getDate() + daysOffset);
     this.state.selectedMealDate = this.formatDate(curDate);
+    
+    // Clear unsaved edits flag and button visuals when changing dates
+    this.hasUnsavedMealEdits = false;
+    const saveBtn = document.getElementById('btn-save-meals');
+    if (saveBtn) {
+      saveBtn.textContent = '💾 Save Meals';
+      saveBtn.style.boxShadow = '';
+    }
+
     this.renderMealBook();
   }
 
@@ -1022,6 +1058,14 @@ class MessManagementApp {
       });
       
       if (res.ok) {
+        // Reset unsaved flag and button visuals on success
+        this.hasUnsavedMealEdits = false;
+        const saveBtn = document.getElementById('btn-save-meals');
+        if (saveBtn) {
+          saveBtn.textContent = '💾 Save Meals';
+          saveBtn.style.boxShadow = '';
+        }
+
         alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully! Cloud updated.`);
         await this.loadFromServer();
         return;
@@ -1041,6 +1085,15 @@ class MessManagementApp {
         dinner: m.dinner
       };
     });
+
+    // Reset unsaved flag and button visuals for local backup as well
+    this.hasUnsavedMealEdits = false;
+    const saveBtn = document.getElementById('btn-save-meals');
+    if (saveBtn) {
+      saveBtn.textContent = '💾 Save Meals';
+      saveBtn.style.boxShadow = '';
+    }
+
     this.saveToLocalStorage();
     alert(`Meals for date ${this.formatReadableDate(todayStr)} saved successfully (Offline local backup)!`);
     this.renderMealBook();
