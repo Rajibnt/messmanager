@@ -307,6 +307,7 @@ class MessManagementApp {
   // Router / Tab Switching Control
   // ==========================================================================
   switchTab(tabName) {
+    this.closeMobileMenu();
     this.state.activeTab = tabName;
     
     // Toggle active state in navigation
@@ -1209,6 +1210,14 @@ class MessManagementApp {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.classList.toggle('open');
+  }
+
+  closeMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.classList.remove('open');
   }
 
   // Formats date object to YYYY-MM-DD
@@ -1239,12 +1248,9 @@ class MessManagementApp {
   }
 }
 
-// Instantiate App on Page Load
-let app;
-window.addEventListener('DOMContentLoaded', () => {
-  // Load saved theme settings from localStorage
-  const savedTheme = localStorage.getItem('elitemess_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', savedTheme);
+// Instantiate App immediately (ES Modules run after DOM parsing by default)
+const savedTheme = localStorage.getItem('elitemess_theme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
 
-  app = new MessManagementApp();
-});
+const app = new MessManagementApp();
+window.app = app; // Expose globally to inline HTML event handlers!
